@@ -104,9 +104,32 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.currentFile == nil {
 				break
 			}
+
+			if err := m.currentFile.Truncate(0); err != nil {
+				fmt.Println("Unable to truncate file")
+				return m, nil
+			}
+			if _, err :=  m.currentFile.Seek(0,0); err != nil {
+				fmt.Println("Unable to seek file")
+				return m, nil
+			}
+			if _, err := m.currentFile.WriteString(m.contentTextarea.Value()); err != nil {
+				fmt.Println("Unable to write in file")
+				return m, nil
+			}
+			if err := m.currentFile.Close(); err != nil {
+				fmt.Println("Unable to close file")
+			}
+			m.currentFile = nil
+			m.contentTextarea.SetValue("")
 			return m, nil
 
 		case "enter":
+			// preserve default behavior if textarea is open
+			if m.currentFile != nil {
+				break
+			}
+
 			filename := m.newFileInput.Value()
 			filepath := fmt.Sprintf("%s/%s.md", vault, filename)
 
