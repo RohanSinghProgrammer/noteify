@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -14,6 +15,7 @@ import (
 var (
 	cursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("200"))
 	vault       string
+	docStyle = lipgloss.NewStyle().Margin(1, 2)
 )
 
 type model struct {
@@ -21,7 +23,18 @@ type model struct {
 	isNewFileInputVisible bool
 	currentFile           *os.File
 	contentTextarea       textarea.Model
+	listFiles list.Model
+	isListFilesVisible bool
 }
+
+type item struct {
+	title       string
+	description string
+}
+
+func (i item) Title() string       { return i.title }
+func (i item) Description() string { return i.description }
+func (i item) FilterValue() string { return i.title }
 
 func initialModel() model {
 
@@ -47,10 +60,17 @@ func initialModel() model {
 	ta.ShowLineNumbers = false
 	ta.Focus()
 
+	// initialize list
+	items := getListItems()
+	finalLists := list.New(items, list.NewDefaultDelegate(), 0, 0)
+	finalLists.Title = "All Notes"
+
 	return model{
 		newFileInput:          ti,
 		isNewFileInputVisible: false,
 		contentTextarea:       ta,
+		listFiles: finalLists,
+		isListFilesVisible: false,
 	}
 }
 
@@ -81,6 +101,10 @@ func (m model) View() string {
 		view = m.contentTextarea.View()
 	}
 
+	if m.isListFilesVisible {
+		view = m.listFiles.View()
+	}
+
 	s := fmt.Sprintf("\n%s\n\n%s\n\n%s", header, view, help)
 
 	// Send the UI for rendering
@@ -92,9 +116,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if msg.String() == "ctrl+c" {
+			return m, tea.Quit
+		}
+	case tea.WindowSizeMsg:
+		h, v := docStyle.GetFrameSize()
+		m.listFiles.SetSize(msg.Width-h, msg.Height-v)
+	}
+
+
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc":
 			return m, tea.Quit
+
+		case "ctrl+l":
+			m.isListFilesVisible = true
+			return m, nil
 			
 		case "ctrl+n":
 			m.isNewFileInputVisible = true
@@ -156,6 +195,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.contentTextarea, cmd = m.contentTextarea.Update(msg)
 		return m, cmd
 	}
+	if m.isListFilesVisible {
+		m.listFiles, cmd = m.listFiles.Update(msg)
+		return m, cmd
+	}
 
 	return m, nil
 }
@@ -179,4 +222,30 @@ func main() {
 		fmt.Printf("Alas, there's been an error: %v", err)
 		os.Exit(1)
 	}
+}
+
+func getListItems() []list.Item {
+	items := make([]list.Item, 0)
+
+	files, err := os.ReadDir(vault)
+	if err != nil {
+		log.Fatal("Unable to load files")
+	}
+	for _, file := range(files) {
+		if !file.IsDir() {
+			filename := file.Name()
+			fileinfo, err := os.Stat(filename)
+			if err != nil {
+				log.Fatalf("Unable to load file info %v", err.Error())
+			}
+			modTime := fileinfo.ModTime()
+			fileDesc := fmt.Sprintf("Modified: %v", modTime)
+			items = append(items, item{
+				title: filename,
+				description: fileDesc,
+			})
+		}
+	}
+
+	return items
 }
