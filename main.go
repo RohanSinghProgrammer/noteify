@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/list"
@@ -234,7 +235,8 @@ func getListItems() []list.Item {
 	for _, file := range(files) {
 		if !file.IsDir() {
 			filename := file.Name()
-			fileinfo, err := os.Stat(filename)
+			fullPath := filepath.Join(vault, filename)
+			fileinfo, err := os.Stat(fullPath)
 			if err != nil {
 				log.Fatalf("Unable to load file info %v", err.Error())
 			}
